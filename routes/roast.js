@@ -9,7 +9,7 @@ const ai = new GoogleGenAI({
 
 router.post("/", async (req, res) => {
     try {
-        const { resumeText } = req.body;
+        const { resumeText } = req.body || {};
 
         if (!resumeText) {
             return res.status(400).json({
@@ -25,23 +25,25 @@ router.post("/", async (req, res) => {
 
         const interaction = await ai.interactions.create({
             model: "gemini-3.5-flash-lite",
-        
+
             input: `
-        Review this resume.
-        
-        Return:
-        1. A short witty roast
-        2. Three major weaknesses
-        3. Three concrete improvements
-        
-        Be concise and useful.
-        
-        Resume:
-        ${resumeText}
+Review this resume.
+
+Return:
+1. One short witty roast
+2. Three major weaknesses
+3. Three concrete improvements
+
+Keep the entire response under 250 words.
+Be concise, specific, and useful.
+
+Resume:
+${resumeText}
             `,
-        
+
             generation_config: {
-                thinking_level: "minimal"
+                thinking_level: "minimal",
+                max_output_tokens: 400
             }
         });
 
