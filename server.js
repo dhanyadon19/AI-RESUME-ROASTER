@@ -7,17 +7,14 @@ const roastRoutes = require("./routes/roast");
 
 const app = express();
 
-const PORT = 3000;
-
+const PORT = process.env.PORT || 3000;
 
 // --------------------------------------------------
 // MIDDLEWARE
 // --------------------------------------------------
 
 // Allow your React frontend to call the backend
-app.use(cors({
-    origin: "http://localhost:5173"
-}));
+app.use(cors());
 
 // Allow Express to read JSON request bodies
 app.use(express.json());
