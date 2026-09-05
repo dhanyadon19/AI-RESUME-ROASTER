@@ -24,23 +24,25 @@ router.post("/", async (req, res) => {
         }
 
         const interaction = await ai.interactions.create({
-            model: "gemini-3.8-flash",
-
+            model: "gemini-3.5-flash-lite",
+        
             input: `
-You are a witty but genuinely useful resume reviewer.
-
-Review this resume and provide:
-
-1. A short funny roast
-2. The biggest weaknesses
-3. Three concrete suggestions for improvement
-
-Keep the feedback helpful, not cruel.
-
-RESUME:
-
-${resumeText}
-            `
+        Review this resume.
+        
+        Return:
+        1. A short witty roast
+        2. Three major weaknesses
+        3. Three concrete improvements
+        
+        Be concise and useful.
+        
+        Resume:
+        ${resumeText}
+            `,
+        
+            generation_config: {
+                thinking_level: "minimal"
+            }
         });
 
         res.json({

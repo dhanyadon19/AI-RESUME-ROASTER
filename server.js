@@ -14,7 +14,12 @@ const PORT = process.env.PORT || 3000;
 // --------------------------------------------------
 
 // Allow your React frontend to call the backend
-app.use(cors());
+app.use(cors({
+    origin: [
+        "http://localhost:5173",
+        "https://ai-resume-roaster-livid.vercel.app"
+    ]
+}));
 
 // Allow Express to read JSON request bodies
 app.use(express.json());
