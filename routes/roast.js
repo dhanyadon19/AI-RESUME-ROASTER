@@ -1,12 +1,29 @@
 const express = require("express");
-const { GoogleGenAI } = require("@google/genai");
+const multer = require("multer");
+
+const { generateRoast } = require("../lib/generateRoast");
+const { extractPdfText } = require("../lib/extractPdfText");
 
 const router = express.Router();
 
-const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY
+const MIN_CHARS = 200;
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB
+
+// Keep uploads in memory only — no need to write resumes to disk.
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: MAX_UPLOAD_BYTES },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype !== "application/pdf") {
+            return cb(new Error("Only PDF files are supported"));
+        }
+        cb(null, true);
+    }
 });
 
+// --------------------------------------------------
+// POST /api/roast  — paste-text flow (unchanged)
+// --------------------------------------------------
 router.post("/", async (req, res) => {
     try {
         const { resumeText } = req.body || {};
@@ -17,48 +34,61 @@ router.post("/", async (req, res) => {
             });
         }
 
-        if (resumeText.length < 200) {
+        if (resumeText.length < MIN_CHARS) {
             return res.status(400).json({
-                message: "Resume must contain at least 200 characters"
+                message: `Resume must contain at least ${MIN_CHARS} characters`
             });
         }
 
-        const interaction = await ai.interactions.create({
-            model: "gemini-3.5-flash-lite",
-
-            input: `
-Review this resume.
-
-Return:
-1. One short witty roast
-2. Three major weaknesses
-3. Three concrete improvements
-
-Keep the entire response under 250 words.
-Be concise, specific, and useful.
-
-Resume:
-${resumeText}
-            `,
-
-            generation_config: {
-                thinking_level: "minimal",
-                max_output_tokens: 400
-            }
-        });
-
-        res.json({
-            roast: interaction.output_text
-        });
+        const roast = await generateRoast(resumeText);
+        res.json({ roast });
 
     } catch (error) {
         console.error("Gemini API error:", error);
-
         res.status(500).json({
             message: "Failed to generate resume feedback",
             error: error.message
         });
     }
+});
+
+// --------------------------------------------------
+// POST /api/roast/upload  — PDF upload flow
+// --------------------------------------------------
+router.post("/upload", (req, res) => {
+    upload.single("resume")(req, res, async (uploadError) => {
+        if (uploadError) {
+            const message =
+                uploadError.code === "LIMIT_FILE_SIZE"
+                    ? "PDF is too large. Max size is 5MB."
+                    : uploadError.message || "Failed to upload file";
+            return res.status(400).json({ message });
+        }
+
+        try {
+            if (!req.file) {
+                return res.status(400).json({ message: "A PDF file is required" });
+            }
+
+            const resumeText = await extractPdfText(req.file.buffer);
+
+            if (resumeText.length < MIN_CHARS) {
+                return res.status(400).json({
+                    message: `Extracted text must contain at least ${MIN_CHARS} characters`
+                });
+            }
+
+            const roast = await generateRoast(resumeText);
+            res.json({ roast, extractedText: resumeText });
+
+        } catch (error) {
+            console.error("PDF roast error:", error);
+            const status = error.message?.startsWith("No readable text") ? 400 : 500;
+            res.status(status).json({
+                message: error.message || "Failed to process PDF",
+            });
+        }
+    });
 });
 
 module.exports = router;
